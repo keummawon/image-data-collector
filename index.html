@@ -148,7 +148,7 @@
     }
     .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .thumb.selected { border-color: var(--blue); }
-    .thumb .num {
+    .thumb .num, .crop .num {
       position: absolute;
       left: 4px;
       bottom: 4px;
@@ -213,6 +213,55 @@
     .options select { width: auto; margin: 0; padding: 6px 8px; font-size: 13px; }
     .options label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 
+    /* 탭 */
+    .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 10px; }
+    .tab { background: none; color: var(--sub); padding: 8px 14px; }
+    .tab.active { background: #fff; color: var(--blue); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    main[hidden], .cam-only[hidden], canvas[hidden], .empty-msg[hidden] { display: none; }
+
+    /* 사진 나누기 탭 */
+    #tab-split { grid-template-columns: 320px 1fr; }
+    .panel-split-set { overflow-y: auto; }
+    .drop {
+      border: 2px dashed var(--line);
+      border-radius: 10px;
+      padding: 22px 12px;
+      text-align: center;
+      color: var(--sub);
+      font-size: 14px;
+      line-height: 1.6;
+      cursor: pointer;
+      margin-bottom: 14px;
+    }
+    .drop:hover, .drop.over { border-color: var(--blue); background: var(--blue-weak); color: var(--blue); }
+    .row2 { display: flex; gap: 8px; }
+    .row2 > div { flex: 1; }
+    input[type="number"] {
+      width: 100%;
+      font: inherit;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    #detectBtn { margin-bottom: 14px; }
+    input[type="range"] { width: 100%; margin: 0 0 6px; }
+    #splitSaveBtn { margin-top: 16px; }
+    .split-preview { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+    #gridCanvas { max-width: 100%; max-height: 42vh; align-self: center; border-radius: 8px; }
+    .crops { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+    .crop {
+      position: relative;
+      cursor: pointer;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 3px solid var(--blue);
+      background: #eee;
+    }
+    .crop.off { border-color: var(--red); opacity: .4; }
+    .crop img { width: 100%; display: block; }
+
     .toast {
       position: fixed;
       left: 50%;
@@ -243,6 +292,8 @@
       .panel-preview { order: 3; }
       .gallery { max-height: 360px; }
       .preview-box { min-height: 260px; }
+      #tab-split { grid-template-columns: 1fr; }
+      #gridCanvas { max-height: none; }
       header { flex-wrap: wrap; padding: 12px 16px; }
       main { padding: 12px 16px; }
     }
@@ -250,19 +301,25 @@
 </head>
 <body>
   <header>
-    <h1>인공지능 이미지 데이터 수집</h1>
+    <div class="header-left">
+      <h1>인공지능 이미지 데이터 수집</h1>
+      <nav class="tabs">
+        <button class="tab active" data-tab="cam">📷 웹캠 촬영</button>
+        <button class="tab" data-tab="split">✂ 사진 나누기</button>
+      </nav>
+    </div>
     <div class="header-actions">
       <button class="btn-folder" id="connectBtn" hidden>📁 저장 폴더 연결</button>
       <span class="save-loc" id="folderStatus" hidden>
         ✅ 저장 폴더: <b id="folderName"></b>
         <button class="link-btn" id="changeLocBtn">변경</button>
       </span>
-      <button class="btn-primary" id="downloadBtn" disabled>⬇ 다운로드</button>
-      <button class="btn-danger-outline" id="resetBtn">↺ 리셋</button>
+      <button class="btn-primary cam-only" id="downloadBtn" disabled>⬇ 다운로드</button>
+      <button class="btn-danger-outline cam-only" id="resetBtn">↺ 리셋</button>
     </div>
   </header>
 
-  <main>
+  <main id="tab-cam">
     <!-- 왼쪽: 웹캠 -->
     <section class="panel panel-cam">
       <h2>웹캠</h2>
@@ -316,6 +373,55 @@
     </section>
   </main>
 
+  <!-- 사진 나누기 탭: 여러 장이 모인 사진을 칸별로 잘라 저장 -->
+  <main id="tab-split" hidden>
+    <section class="panel panel-split-set">
+      <h2>사진 넣기</h2>
+      <div class="drop" id="drop">🖼 여기로 사진을 끌어오거나<br>클릭해서 고르세요<br><small>복사한 사진은 Ctrl+V로 붙여넣기</small></div>
+      <input type="file" id="fileIn" accept="image/*" hidden>
+
+      <label class="field" for="splitName">범주/클래스 이름</label>
+      <input type="text" id="splitName" placeholder="예: 홍길동, 웃는 얼굴" maxlength="40">
+
+      <div class="row2">
+        <div>
+          <label class="field" for="rowsIn">가로줄 수</label>
+          <input type="number" id="rowsIn" min="1" max="20" value="4">
+        </div>
+        <div>
+          <label class="field" for="colsIn">한 줄에 몇 장</label>
+          <input type="number" id="colsIn" min="1" max="20" value="5">
+        </div>
+      </div>
+      <button class="btn-outline" id="detectBtn" disabled>🔍 칸 자동으로 찾기</button>
+
+      <label class="field" for="trimIn">가장자리 잘라내기: <span id="trimVal">6</span>%</label>
+      <input type="range" id="trimIn" min="0" max="25" value="6">
+      <div class="options">
+        <label>크기
+          <select id="splitSize">
+            <option value="224" selected>224px</option>
+            <option value="400">400px</option>
+            <option value="640">640px</option>
+            <option value="orig">원본</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="squareChk" checked> 정사각형</label>
+      </div>
+      <div class="hint">사진 위의 숫자나 테두리가 보이면 '가장자리 잘라내기'를 늘려 주세요.<br>아래 사진을 클릭하면 저장에서 빠져요.</div>
+      <button class="btn-primary" id="splitSaveBtn" disabled>⬇ 폴더에 저장</button>
+    </section>
+
+    <section class="panel">
+      <h2>자른 결과 <span class="badge" id="splitBadge">0장</span></h2>
+      <div class="split-preview">
+        <div class="empty-msg" id="splitEmpty" style="padding:60px 0">왼쪽에 여러 장이 모인 사진을 넣으면<br>칸마다 잘라서 여기에 보여 줘요.</div>
+        <canvas id="gridCanvas" hidden></canvas>
+        <div class="crops" id="crops"></div>
+      </div>
+    </section>
+  </main>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -333,6 +439,210 @@
     const captureBtn = $('captureBtn');
     const gallery = $('gallery');
     const previewBox = $('previewBox');
+
+    // ===== 탭 전환 =====
+    let currentTab = 'cam';
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+      currentTab = tab.dataset.tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+      $('tab-cam').hidden = currentTab !== 'cam';
+      $('tab-split').hidden = currentTab !== 'split';
+      document.querySelectorAll('.cam-only').forEach(el => el.hidden = currentTab !== 'cam');
+    }));
+
+    // ===== 사진 나누기 =====
+    let srcImg = null, srcUrl = null;
+    let detected = null;            // 자동으로 찾은 칸 경계 { xs: [[x0,x1]...], ys: [[y0,y1]...] }
+    let cropUrls = [];              // 잘라낸 사진들
+    const excluded = new Set();     // 저장에서 뺄 칸 번호
+    const gridCanvas = $('gridCanvas');
+
+    function keptCrops() { return cropUrls.filter((_, i) => !excluded.has(i)); }
+
+    function loadSplitFile(file) {
+      if (!file || !file.type.startsWith('image/')) { showToast('이미지 파일을 골라 주세요.'); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        if (srcUrl) URL.revokeObjectURL(srcUrl);
+        srcImg = img;
+        srcUrl = url;
+        excluded.clear();
+        $('detectBtn').disabled = false;
+        if (autoDetect()) showToast($('rowsIn').value + '줄 × ' + $('colsIn').value + '장으로 나눴어요.');
+        else showToast('칸을 자동으로 찾지 못했어요. 가로줄 수와 한 줄에 몇 장인지 직접 맞춰 주세요.');
+        renderSplit();
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); showToast('이 사진을 열 수 없어요.'); };
+      img.src = url;
+    }
+
+    // 사진 사이의 흰 구분선을 찾아 칸을 나눔
+    function autoDetect() {
+      const W = srcImg.naturalWidth, H = srcImg.naturalHeight;
+      const s = Math.min(1, 800 / Math.max(W, H));
+      const w = Math.max(1, Math.round(W * s)), h = Math.max(1, Math.round(H * s));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(srcImg, 0, 0, w, h);
+      const d = cx.getImageData(0, 0, w, h).data;
+      const colP = new Float32Array(w), rowP = new Float32Array(h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          if (d[i] > 225 && d[i + 1] > 225 && d[i + 2] > 225) { colP[x]++; rowP[y]++; }
+        }
+      }
+      for (let x = 0; x < w; x++) colP[x] /= h;
+      for (let y = 0; y < h; y++) rowP[y] /= w;
+      const xs = bands(colP, w), ys = bands(rowP, h);
+      if (xs.length * ys.length < 2 || xs.length > 20 || ys.length > 20) { detected = null; return false; }
+      detected = {
+        xs: xs.map(([a, b]) => [a / s, b / s]),
+        ys: ys.map(([a, b]) => [a / s, b / s])
+      };
+      $('rowsIn').value = ys.length;
+      $('colsIn').value = xs.length;
+      return true;
+    }
+
+    // 거의 전부 밝은 줄 = 구분선, 그 사이 구간 = 사진 칸
+    function bands(p, len) {
+      const out = [];
+      let prev = 0, start = -1;
+      for (let i = 0; i <= len; i++) {
+        const line = i < len && p[i] > 0.9;
+        if (line && start < 0) start = i;
+        if (!line && start >= 0) {
+          if (start - prev > len * 0.04) out.push([prev, start]);
+          prev = i;
+          start = -1;
+        }
+      }
+      if (len - prev > len * 0.04) out.push([prev, len]);
+      return out;
+    }
+
+    function clampInt(v, min, max) {
+      v = parseInt(v, 10);
+      return isNaN(v) ? min : Math.max(min, Math.min(max, v));
+    }
+
+    function cellRects() {
+      const W = srcImg.naturalWidth, H = srcImg.naturalHeight;
+      let xs, ys;
+      if (detected) {
+        ({ xs, ys } = detected);
+      } else {
+        const r = clampInt($('rowsIn').value, 1, 20), c = clampInt($('colsIn').value, 1, 20);
+        xs = Array.from({ length: c }, (_, i) => [i * W / c, (i + 1) * W / c]);
+        ys = Array.from({ length: r }, (_, i) => [i * H / r, (i + 1) * H / r]);
+      }
+      const rects = [];
+      ys.forEach(([y0, y1]) => xs.forEach(([x0, x1]) => rects.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 })));
+      return rects;
+    }
+
+    // 가장자리를 잘라내고, 필요하면 가운데를 정사각형으로
+    function cropRect(r) {
+      const t = parseInt($('trimIn').value, 10) / 100;
+      let x = r.x + r.w * t, y = r.y + r.h * t, w = r.w * (1 - 2 * t), h = r.h * (1 - 2 * t);
+      if ($('squareChk').checked) {
+        const side = Math.min(w, h);
+        x += (w - side) / 2;
+        y += (h - side) / 2;
+        w = h = side;
+      }
+      return { x, y, w, h };
+    }
+
+    function renderSplit() {
+      if (!srcImg) return;
+      const rects = cellRects().map(cropRect);
+
+      // 원본 위에 자를 칸 표시
+      const W = srcImg.naturalWidth, H = srcImg.naturalHeight, s = Math.min(1, 900 / W);
+      gridCanvas.width = Math.round(W * s);
+      gridCanvas.height = Math.round(H * s);
+      const g = gridCanvas.getContext('2d');
+      g.drawImage(srcImg, 0, 0, gridCanvas.width, gridCanvas.height);
+      g.lineWidth = 2;
+      rects.forEach((r, i) => {
+        const off = excluded.has(i);
+        g.fillStyle = off ? 'rgba(217, 48, 37, .35)' : 'rgba(26, 115, 232, .12)';
+        g.strokeStyle = off ? '#d93025' : '#1a73e8';
+        g.fillRect(r.x * s, r.y * s, r.w * s, r.h * s);
+        g.strokeRect(r.x * s, r.y * s, r.w * s, r.h * s);
+      });
+      gridCanvas.hidden = false;
+      $('splitEmpty').hidden = true;
+
+      // 칸마다 잘라내기
+      const sizeV = $('splitSize').value;
+      cropUrls = rects.map(r => {
+        const ow = sizeV === 'orig' ? Math.max(1, Math.round(r.w)) : parseInt(sizeV, 10);
+        const oh = Math.max(1, Math.round(ow * r.h / r.w));
+        const c = document.createElement('canvas');
+        c.width = ow;
+        c.height = oh;
+        c.getContext('2d').drawImage(srcImg, r.x, r.y, r.w, r.h, 0, 0, ow, oh);
+        return c.toDataURL('image/jpeg', 0.92);
+      });
+
+      const box = $('crops');
+      box.innerHTML = '';
+      let n = 0;
+      cropUrls.forEach((u, i) => {
+        const off = excluded.has(i);
+        const div = document.createElement('div');
+        div.className = 'crop' + (off ? ' off' : '');
+        div.title = off ? '클릭하면 다시 넣어요' : '클릭하면 저장에서 빼요';
+        div.innerHTML = '<img src="' + u + '" alt=""><span class="num">' + (off ? '빼기' : ++n) + '</span>';
+        div.addEventListener('click', () => {
+          off ? excluded.delete(i) : excluded.add(i);
+          renderSplit();
+        });
+        box.appendChild(div);
+      });
+      $('splitBadge').textContent = n + '장';
+      updateDownloadBtn();
+    }
+
+    const drop = $('drop');
+    drop.addEventListener('click', () => $('fileIn').click());
+    $('fileIn').addEventListener('change', (e) => { loadSplitFile(e.target.files[0]); e.target.value = ''; });
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove('over')));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); loadSplitFile(e.dataTransfer.files[0]); });
+    // 영역 밖에 떨어뜨려도 사진 파일이 열려 페이지가 바뀌지 않게
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (currentTab === 'split' && e.target !== drop && e.dataTransfer.files[0]) loadSplitFile(e.dataTransfer.files[0]);
+    });
+    document.addEventListener('paste', (e) => {
+      if (currentTab !== 'split') return;
+      const f = [...e.clipboardData.files].find(f => f.type.startsWith('image/'));
+      if (f) loadSplitFile(f);
+    });
+
+    ['rowsIn', 'colsIn'].forEach(id => $(id).addEventListener('input', () => {
+      detected = null;          // 직접 바꾸면 똑같은 크기로 나누기
+      excluded.clear();
+      renderSplit();
+    }));
+    $('trimIn').addEventListener('input', () => { $('trimVal').textContent = $('trimIn').value; renderSplit(); });
+    $('splitSize').addEventListener('change', renderSplit);
+    $('squareChk').addEventListener('change', renderSplit);
+    $('detectBtn').addEventListener('click', () => {
+      if (!srcImg) return;
+      excluded.clear();
+      showToast(autoDetect() ? '칸을 찾았어요.' : '칸을 자동으로 찾지 못했어요. 직접 맞춰 주세요.');
+      renderSplit();
+    });
+    $('splitSaveBtn').addEventListener('click', () =>
+      saveSet($('splitName'), keptCrops(), $('splitSaveBtn'), '⬇ 폴더에 저장'));
 
     // ===== 카메라 =====
     async function startCamera() {
@@ -493,7 +803,7 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-      if (selectedIdx < 0) return;
+      if (currentTab !== 'cam' || selectedIdx < 0) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); }
       if (e.key === 'ArrowLeft' && selectedIdx > 0) select(selectedIdx - 1);
       if (e.key === 'ArrowRight' && selectedIdx < images.length - 1) select(selectedIdx + 1);
@@ -604,7 +914,9 @@
     });
 
     function updateDownloadBtn() {
-      $('downloadBtn').disabled = images.length === 0 || (FS_OK && !saveDir);
+      const noDir = FS_OK && !saveDir;
+      $('downloadBtn').disabled = images.length === 0 || noDir;
+      $('splitSaveBtn').disabled = keptCrops().length === 0 || noDir;
     }
 
     // 시작할 때 기억된 폴더 확인
@@ -632,16 +944,16 @@
       }
     }
 
-    $('downloadBtn').addEventListener('click', async () => {
-      if (images.length === 0) return;
-      const raw = $('className').value;
+    // 사진 묶음을 "클래스 이름" 폴더에 1.jpg, 2.jpg ... 로 저장 (두 탭 공용)
+    async function saveSet(nameInput, list, btn, btnLabel) {
+      if (list.length === 0) return;
+      const raw = nameInput.value;
       if (!raw.trim()) {
         showToast('먼저 범주/클래스 이름을 입력해 주세요.');
-        $('className').focus();
+        nameInput.focus();
         return;
       }
       const name = safeName(raw);
-      const btn = $('downloadBtn');
 
       // 1순위: 폴더에 직접 저장 (크롬·엣지 PC) → 압축 풀기 필요 없음
       if (FS_OK) {
@@ -656,14 +968,14 @@
           try {
             const folderName = await uniqueFolderName(root, name);
             const dir = await root.getDirectoryHandle(folderName, { create: true });
-            for (let i = 0; i < images.length; i++) {
+            for (let i = 0; i < list.length; i++) {
               const fh = await dir.getFileHandle((i + 1) + '.jpg', { create: true });
               const w = await fh.createWritable();
-              await w.write(dataUrlToBlob(images[i].dataUrl));
+              await w.write(dataUrlToBlob(list[i]));
               await w.close();
-              btn.textContent = '저장 중... ' + (i + 1) + '/' + images.length;
+              btn.textContent = '저장 중... ' + (i + 1) + '/' + list.length;
             }
-            showToast(images.length + '장을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
+            showToast(list.length + '장을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
           } catch (err) {
             console.error(err);
             if (err.name === 'NotFoundError') {
@@ -677,7 +989,7 @@
               showToast('저장 중 오류가 났어요: ' + err.message);
             }
           } finally {
-            btn.textContent = '⬇ 다운로드';
+            btn.textContent = btnLabel;
             renderFolderUI();
           }
           return;
@@ -690,8 +1002,8 @@
       try {
         const zip = new JSZip();
         const folder = zip.folder(name);
-        images.forEach((img, i) => {
-          const base64 = img.dataUrl.split(',')[1];
+        list.forEach((dataUrl, i) => {
+          const base64 = dataUrl.split(',')[1];
           folder.file((i + 1) + '.jpg', base64, { base64: true });
         });
         const blob = await zip.generateAsync({ type: 'blob' });
@@ -703,15 +1015,18 @@
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
-        showToast(images.length + '장을 "' + name + '" 폴더로 저장했어요.');
+        showToast(list.length + '장을 "' + name + '" 폴더로 저장했어요.');
       } catch (err) {
         console.error(err);
         showToast('다운로드 중 오류가 났어요: ' + err.message);
       } finally {
-        btn.textContent = '⬇ 다운로드';
-        btn.disabled = images.length === 0;
+        btn.textContent = btnLabel;
+        updateDownloadBtn();
       }
-    });
+    }
+
+    $('downloadBtn').addEventListener('click', () =>
+      saveSet($('className'), images.map(img => img.dataUrl), $('downloadBtn'), '⬇ 다운로드'));
 
     // ===== 리셋 =====
     $('resetBtn').addEventListener('click', () => {
