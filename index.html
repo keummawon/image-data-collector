@@ -1011,8 +1011,10 @@
           btn.textContent = '저장 중...';
           try {
             // 같은 이름 폴더가 있으면 그 폴더에 이어서 저장 (먼저 물어봄)
-            const folderName = name;
-            let dir = await findFolder(root, name);
+            // 연결한 폴더 이름이 클래스 이름과 같으면 그 폴더 자체에 저장 (우리반 > 우리반 처럼 겹치지 않게)
+            const isRoot = root.name === name;
+            const folderName = isRoot ? root.name : root.name + ' > ' + name;
+            let dir = isRoot ? root : await findFolder(root, name);
             if (dir) {
               const max = await lastNumber(dir);
               if (start <= max) start = max + 1;   // 이미 있는 번호 다음부터 자동으로 이어서
@@ -1032,7 +1034,7 @@
               await w.close();
               btn.textContent = '저장 중... ' + (i + 1) + '/' + list.length;
             }
-            showToast(list.length + '장(' + start + '~' + lastNum() + '번)을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
+            showToast(list.length + '장(' + start + '~' + lastNum() + '번)을 "' + folderName + '" 폴더에 저장했어요.');
           } catch (err) {
             console.error(err);
             if (err.name === 'NotFoundError') {
