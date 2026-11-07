@@ -212,6 +212,8 @@
     .options { display: flex; gap: 12px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--sub); }
     .options select { width: auto; margin: 0; padding: 6px 8px; font-size: 13px; }
     .options label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .options { flex-wrap: wrap; }
+    .options input.start-in { width: 72px; margin: 0; padding: 6px 8px; font-size: 13px; }
 
     /* 탭 */
     .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -347,6 +349,7 @@
           </select>
         </label>
         <label><input type="checkbox" id="mirrorChk" checked> 좌우 반전</label>
+        <label>시작 번호 <input type="number" class="start-in" id="camStart" min="1" value="1"></label>
       </div>
       <div class="hint">버튼을 한 번 누르면 1장, 길게 누르고 있으면 연속으로 찍혀요.</div>
     </section>
@@ -408,6 +411,7 @@
           </select>
         </label>
         <label><input type="checkbox" id="squareChk" checked> 정사각형</label>
+        <label>시작 번호 <input type="number" class="start-in" id="splitStart" min="1" value="1"></label>
       </div>
       <div class="hint">사진 위의 숫자나 테두리가 보이면 '가장자리 잘라내기'를 늘려 주세요.<br>아래 사진을 클릭하면 저장에서 빠져요.</div>
       <div class="cam-row split-actions">
@@ -533,6 +537,9 @@
       return isNaN(v) ? min : Math.max(min, Math.min(max, v));
     }
 
+    // 저장 시작 번호 (1 이상)
+    function startNum(input) { return clampInt(input.value, 1, 999999); }
+
     function cellRects() {
       const W = srcImg.naturalWidth, H = srcImg.naturalHeight;
       let xs, ys;
@@ -596,7 +603,7 @@
 
       const box = $('crops');
       box.innerHTML = '';
-      let n = 0;
+      let n = startNum($('splitStart')) - 1;
       cropUrls.forEach((u, i) => {
         const off = excluded.has(i);
         const div = document.createElement('div');
@@ -609,7 +616,7 @@
         });
         box.appendChild(div);
       });
-      $('splitBadge').textContent = n + '장';
+      $('splitBadge').textContent = keptCrops().length + '장';
       updateDownloadBtn();
     }
 
@@ -638,6 +645,7 @@
     }));
     $('trimIn').addEventListener('input', () => { $('trimVal').textContent = $('trimIn').value; renderSplit(); });
     $('splitSize').addEventListener('change', renderSplit);
+    $('splitStart').addEventListener('input', renderSplit);
     $('squareChk').addEventListener('change', renderSplit);
     $('detectBtn').addEventListener('click', () => {
       if (!srcImg) return;
@@ -646,7 +654,7 @@
       renderSplit();
     });
     $('splitSaveBtn').addEventListener('click', () =>
-      saveSet($('splitName'), keptCrops(), $('splitSaveBtn'), '⬇ 폴더에 저장'));
+      saveSet($('splitName'), keptCrops(), $('splitSaveBtn'), '⬇ 폴더에 저장', $('splitStart')));
 
     // 넣은 사진과 설정을 모두 처음 상태로
     $('splitResetBtn').addEventListener('click', () => {
@@ -662,6 +670,7 @@
       $('trimVal').textContent = '6';
       $('splitSize').value = '224';
       $('squareChk').checked = true;
+      $('splitStart').value = 1;
       $('detectBtn').disabled = true;
       gridCanvas.hidden = true;
       $('splitEmpty').hidden = false;
@@ -713,6 +722,8 @@
     }
 
     camBtn.addEventListener('click', () => stream ? stopCamera() : startCamera());
+
+    $('camStart').addEventListener('input', () => renderGallery());
 
     $('mirrorChk').addEventListener('change', (e) => {
       video.classList.toggle('mirror', e.target.checked);
@@ -784,7 +795,7 @@
       images.forEach((img, i) => {
         const div = document.createElement('div');
         div.className = 'thumb' + (i === selectedIdx ? ' selected' : '');
-        div.innerHTML = '<img src="' + img.dataUrl + '" alt=""><span class="num">' + (i + 1) + '</span>';
+        div.innerHTML = '<img src="' + img.dataUrl + '" alt=""><span class="num">' + (startNum($('camStart')) + i) + '</span>';
         div.addEventListener('click', () => select(i));
         gallery.appendChild(div);
       });
@@ -972,7 +983,7 @@
     }
 
     // 사진 묶음을 "클래스 이름" 폴더에 1.jpg, 2.jpg ... 로 저장 (두 탭 공용)
-    async function saveSet(nameInput, list, btn, btnLabel) {
+    async function saveSet(nameInput, list, btn, btnLabel, startInput) {
       if (list.length === 0) return;
       const raw = nameInput.value;
       if (!raw.trim()) {
@@ -981,6 +992,9 @@
         return;
       }
       const name = safeName(raw);
+      const start = startNum(startInput);
+      const fileName = (i) => (start + i) + '.jpg';
+      const last = start + list.length - 1;
 
       // 1순위: 폴더에 직접 저장 (크롬·엣지 PC) → 압축 풀기 필요 없음
       if (FS_OK) {
@@ -993,16 +1007,27 @@
           btn.disabled = true;
           btn.textContent = '저장 중...';
           try {
-            const folderName = await uniqueFolderName(root, name);
+            // 1번부터면 새 폴더, 다른 번호부터면 같은 이름 폴더에 이어서 저장
+            const folderName = start === 1 ? await uniqueFolderName(root, name) : name;
             const dir = await root.getDirectoryHandle(folderName, { create: true });
+            if (start !== 1) {
+              let dup = 0;
+              for (let i = 0; i < list.length; i++) {
+                try { await dir.getFileHandle(fileName(i)); dup++; } catch (e) { /* 없음 */ }
+              }
+              if (dup > 0 && !confirm('"' + folderName + '" 폴더에 같은 번호 사진이 ' + dup + '장 있어요. 덮어쓸까요?')) {
+                showToast('저장을 취소했어요. 시작 번호를 바꿔 주세요.');
+                return;
+              }
+            }
             for (let i = 0; i < list.length; i++) {
-              const fh = await dir.getFileHandle((i + 1) + '.jpg', { create: true });
+              const fh = await dir.getFileHandle(fileName(i), { create: true });
               const w = await fh.createWritable();
               await w.write(dataUrlToBlob(list[i]));
               await w.close();
               btn.textContent = '저장 중... ' + (i + 1) + '/' + list.length;
             }
-            showToast(list.length + '장을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
+            showToast(list.length + '장(' + start + '~' + last + '번)을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
           } catch (err) {
             console.error(err);
             if (err.name === 'NotFoundError') {
@@ -1031,7 +1056,7 @@
         const folder = zip.folder(name);
         list.forEach((dataUrl, i) => {
           const base64 = dataUrl.split(',')[1];
-          folder.file((i + 1) + '.jpg', base64, { base64: true });
+          folder.file(fileName(i), base64, { base64: true });
         });
         const blob = await zip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(blob);
@@ -1042,7 +1067,7 @@
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
-        showToast(list.length + '장을 "' + name + '" 폴더로 저장했어요.');
+        showToast(list.length + '장(' + start + '~' + last + '번)을 "' + name + '" 폴더로 저장했어요.');
       } catch (err) {
         console.error(err);
         showToast('다운로드 중 오류가 났어요: ' + err.message);
@@ -1053,7 +1078,7 @@
     }
 
     $('downloadBtn').addEventListener('click', () =>
-      saveSet($('className'), images.map(img => img.dataUrl), $('downloadBtn'), '⬇ 다운로드'));
+      saveSet($('className'), images.map(img => img.dataUrl), $('downloadBtn'), '⬇ 다운로드', $('camStart')));
 
     // ===== 리셋 =====
     $('resetBtn').addEventListener('click', () => {
@@ -1062,6 +1087,7 @@
       selectedIdx = -1;
       nextId = 1;
       $('className').value = '';
+      $('camStart').value = 1;
       renderGallery();
       showToast('초기화했어요');
       $('className').focus();
