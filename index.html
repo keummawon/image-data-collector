@@ -252,7 +252,7 @@
   <header>
     <h1>인공지능 이미지 데이터 수집</h1>
     <div class="header-actions">
-      <button class="btn-folder" id="connectBtn" hidden>📁 저장 폴더 만들기·연결</button>
+      <button class="btn-folder" id="connectBtn" hidden>📁 저장 폴더 연결</button>
       <span class="save-loc" id="folderStatus" hidden>
         ✅ 저장 폴더: <b id="folderName"></b>
         <button class="link-btn" id="changeLocBtn">변경</button>
@@ -547,7 +547,6 @@
 
     // ===== 저장 폴더 만들기·연결 =====
     const FS_OK = 'showDirectoryPicker' in window;
-    const SAVE_FOLDER = 'AI 이미지 데이터';
     let saveDir = null;      // 연결되어 쓰기 권한이 있는 폴더
     let savedDir = null;     // 기억된 폴더(권한 재확인 필요할 수 있음)
 
@@ -561,23 +560,18 @@
       } else {
         btn.hidden = false;
         $('folderStatus').hidden = true;
-        btn.textContent = savedDir ? '📁 저장 폴더 다시 연결' : '📁 저장 폴더 만들기·연결';
+        btn.textContent = savedDir ? '📁 저장 폴더 다시 연결' : '📁 저장 폴더 연결';
       }
       updateDownloadBtn();
     }
 
-    // 위치를 고르면 그 안에 "AI 이미지 데이터" 폴더를 만들어 연결
+    // 고른 폴더를 그대로 연결 (그 안에 클래스 이름 폴더가 바로 만들어짐)
     async function createAndConnect() {
-      const parent = await window.showDirectoryPicker({ id: 'ai-image-data', mode: 'readwrite', startIn: 'desktop' });
-      const dir = parent.name === SAVE_FOLDER
-        ? parent
-        : await parent.getDirectoryHandle(SAVE_FOLDER, { create: true });
+      const dir = await window.showDirectoryPicker({ id: 'ai-image-data', mode: 'readwrite', startIn: 'desktop' });
       saveDir = savedDir = dir;
       await idbSet('root', dir);
       renderFolderUI();
-      showToast(parent.name === SAVE_FOLDER
-        ? '"' + SAVE_FOLDER + '" 폴더를 연결했어요.'
-        : '"' + parent.name + ' > ' + SAVE_FOLDER + '" 폴더를 만들고 연결했어요.');
+      showToast('"' + dir.name + '" 폴더를 연결했어요. 이 안에 클래스 이름 폴더로 저장돼요.');
     }
 
     async function connectFolder() {
@@ -652,7 +646,7 @@
       // 1순위: 폴더에 직접 저장 (크롬·엣지 PC) → 압축 풀기 필요 없음
       if (FS_OK) {
         if (!saveDir) {
-          showToast('먼저 위쪽의 "저장 폴더 만들기·연결" 버튼을 눌러 주세요.');
+          showToast('먼저 위쪽의 "저장 폴더 연결" 버튼을 눌러 주세요.');
           return;
         }
         const root = saveDir;
@@ -675,7 +669,7 @@
             if (err.name === 'NotFoundError') {
               await idbSet('root', null);
               saveDir = savedDir = null;
-              showToast('저장 폴더를 찾을 수 없어요. 폴더를 다시 만들고 연결해 주세요.');
+              showToast('저장 폴더를 찾을 수 없어요. 폴더를 다시 연결해 주세요.');
             } else if (err.name === 'NotAllowedError') {
               saveDir = null;
               showToast('폴더 권한이 꺼졌어요. "저장 폴더 다시 연결"을 눌러 주세요.');
