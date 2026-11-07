@@ -969,17 +969,23 @@
       renderFolderUI();
     })();
 
-    // 같은 이름 폴더가 이미 있으면 "사과 (2)"처럼 새 이름 사용
-    async function uniqueFolderName(root, name) {
-      let candidate = name, n = 2;
-      while (true) {
-        try {
-          await root.getDirectoryHandle(candidate);   // 있으면 계속
-          candidate = name + ' (' + n++ + ')';
-        } catch (e) {
-          return candidate;                           // 없으면 이 이름 사용
-        }
+    // 같은 이름 폴더가 있으면 그 폴더, 없으면 null
+    async function findFolder(root, name) {
+      try { return await root.getDirectoryHandle(name); }
+      catch (e) {
+        if (e.name === 'NotFoundError' || e.name === 'TypeMismatchError') return null;
+        throw e;
       }
+    }
+
+    // 폴더 안의 "숫자.jpg" 중 가장 큰 번호 (없으면 0)
+    async function lastNumber(dir) {
+      let max = 0;
+      for await (const fileName of dir.keys()) {
+        const m = /^(\d+)\.jpe?g$/i.exec(fileName);
+        if (m) max = Math.max(max, parseInt(m[1], 10));
+      }
+      return max;
     }
 
     // 사진 묶음을 "클래스 이름" 폴더에 1.jpg, 2.jpg ... 로 저장 (두 탭 공용)
@@ -992,9 +998,9 @@
         return;
       }
       const name = safeName(raw);
-      const start = startNum(startInput);
+      let start = startNum(startInput);
       const fileName = (i) => (start + i) + '.jpg';
-      const last = start + list.length - 1;
+      const lastNum = () => start + list.length - 1;
 
       // 1순위: 폴더에 직접 저장 (크롬·엣지 PC) → 압축 풀기 필요 없음
       if (FS_OK) {
@@ -1007,18 +1013,20 @@
           btn.disabled = true;
           btn.textContent = '저장 중...';
           try {
-            // 1번부터면 새 폴더, 다른 번호부터면 같은 이름 폴더에 이어서 저장
-            const folderName = start === 1 ? await uniqueFolderName(root, name) : name;
-            const dir = await root.getDirectoryHandle(folderName, { create: true });
-            if (start !== 1) {
-              let dup = 0;
-              for (let i = 0; i < list.length; i++) {
-                try { await dir.getFileHandle(fileName(i)); dup++; } catch (e) { /* 없음 */ }
-              }
-              if (dup > 0 && !confirm('"' + folderName + '" 폴더에 같은 번호 사진이 ' + dup + '장 있어요. 덮어쓸까요?')) {
-                showToast('저장을 취소했어요. 시작 번호를 바꿔 주세요.');
+            // 같은 이름 폴더가 있으면 그 폴더에 이어서 저장 (먼저 물어봄)
+            const folderName = name;
+            let dir = await findFolder(root, name);
+            if (dir) {
+              const max = await lastNumber(dir);
+              if (start <= max) start = max + 1;   // 이미 있는 번호 다음부터 자동으로 이어서
+              const msg = '"' + name + '" 폴더가 이미 있어요' + (max ? ' (마지막 번호: ' + max + '번)' : '') + '.\n'
+                + '이 폴더에 ' + start + '번~' + lastNum() + '번으로 이어서 저장할까요?';
+              if (!confirm(msg)) {
+                showToast('저장을 취소했어요.');
                 return;
               }
+            } else {
+              dir = await root.getDirectoryHandle(name, { create: true });
             }
             for (let i = 0; i < list.length; i++) {
               const fh = await dir.getFileHandle(fileName(i), { create: true });
@@ -1027,7 +1035,7 @@
               await w.close();
               btn.textContent = '저장 중... ' + (i + 1) + '/' + list.length;
             }
-            showToast(list.length + '장(' + start + '~' + last + '번)을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
+            showToast(list.length + '장(' + start + '~' + lastNum() + '번)을 "' + root.name + ' > ' + folderName + '" 폴더에 저장했어요.');
           } catch (err) {
             console.error(err);
             if (err.name === 'NotFoundError') {
@@ -1067,7 +1075,7 @@
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
-        showToast(list.length + '장(' + start + '~' + last + '번)을 "' + name + '" 폴더로 저장했어요.');
+        showToast(list.length + '장(' + start + '~' + lastNum() + '번)을 "' + name + '" 폴더로 저장했어요.');
       } catch (err) {
         console.error(err);
         showToast('다운로드 중 오류가 났어요: ' + err.message);
