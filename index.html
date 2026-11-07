@@ -220,7 +220,7 @@
     .tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 10px; }
     .tab { background: none; color: var(--sub); padding: 8px 14px; }
     .tab.active { background: #fff; color: var(--blue); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-    main[hidden], .cam-only[hidden], canvas[hidden], .empty-msg[hidden] { display: none; }
+    main[hidden], .cam-only[hidden], .split-only[hidden], canvas[hidden], .empty-msg[hidden] { display: none; }
 
     /* 사진 나누기 탭 */
     #tab-split { grid-template-columns: 320px 1fr; }
@@ -249,8 +249,6 @@
     }
     #detectBtn { margin-bottom: 14px; }
     input[type="range"] { width: 100%; margin: 0 0 6px; }
-    .split-actions { margin-top: 16px; }
-    #splitSaveBtn { flex: 2; }
     .split-preview { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
     #gridCanvas { max-width: 100%; max-height: 42vh; align-self: center; border-radius: 8px; }
     .crops { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
@@ -319,6 +317,8 @@
       </span>
       <button class="btn-primary cam-only" id="downloadBtn" disabled>⬇ 다운로드</button>
       <button class="btn-danger-outline cam-only" id="resetBtn">↺ 리셋</button>
+      <button class="btn-primary split-only" id="splitSaveBtn" disabled hidden>⬇ 폴더에 저장</button>
+      <button class="btn-danger-outline split-only" id="splitResetBtn" hidden>↺ 리셋</button>
     </div>
   </header>
 
@@ -414,10 +414,6 @@
         <label>시작 번호 <input type="number" class="start-in" id="splitStart" min="1" value="1"></label>
       </div>
       <div class="hint">사진 위의 숫자나 테두리가 보이면 '가장자리 잘라내기'를 늘려 주세요.<br>아래 사진을 클릭하면 저장에서 빠져요.</div>
-      <div class="cam-row split-actions">
-        <button class="btn-danger-outline" id="splitResetBtn">↺ 리셋</button>
-        <button class="btn-primary" id="splitSaveBtn" disabled>⬇ 폴더에 저장</button>
-      </div>
     </section>
 
     <section class="panel">
@@ -456,6 +452,7 @@
       $('tab-cam').hidden = currentTab !== 'cam';
       $('tab-split').hidden = currentTab !== 'split';
       document.querySelectorAll('.cam-only').forEach(el => el.hidden = currentTab !== 'cam');
+      document.querySelectorAll('.split-only').forEach(el => el.hidden = currentTab !== 'split');
     }));
 
     // ===== 사진 나누기 =====
