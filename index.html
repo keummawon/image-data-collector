@@ -247,7 +247,8 @@
     }
     #detectBtn { margin-bottom: 14px; }
     input[type="range"] { width: 100%; margin: 0 0 6px; }
-    #splitSaveBtn { margin-top: 16px; }
+    .split-actions { margin-top: 16px; }
+    #splitSaveBtn { flex: 2; }
     .split-preview { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
     #gridCanvas { max-width: 100%; max-height: 42vh; align-self: center; border-radius: 8px; }
     .crops { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
@@ -409,7 +410,10 @@
         <label><input type="checkbox" id="squareChk" checked> 정사각형</label>
       </div>
       <div class="hint">사진 위의 숫자나 테두리가 보이면 '가장자리 잘라내기'를 늘려 주세요.<br>아래 사진을 클릭하면 저장에서 빠져요.</div>
-      <button class="btn-primary" id="splitSaveBtn" disabled>⬇ 폴더에 저장</button>
+      <div class="cam-row split-actions">
+        <button class="btn-danger-outline" id="splitResetBtn">↺ 리셋</button>
+        <button class="btn-primary" id="splitSaveBtn" disabled>⬇ 폴더에 저장</button>
+      </div>
     </section>
 
     <section class="panel">
@@ -643,6 +647,29 @@
     });
     $('splitSaveBtn').addEventListener('click', () =>
       saveSet($('splitName'), keptCrops(), $('splitSaveBtn'), '⬇ 폴더에 저장'));
+
+    // 넣은 사진과 설정을 모두 처음 상태로
+    $('splitResetBtn').addEventListener('click', () => {
+      if (srcImg && !confirm('넣은 사진과 자른 결과 ' + keptCrops().length + '장이 지워져요. 처음부터 다시 할까요?')) return;
+      if (srcUrl) URL.revokeObjectURL(srcUrl);
+      srcImg = srcUrl = detected = null;
+      cropUrls = [];
+      excluded.clear();
+      $('splitName').value = '';
+      $('rowsIn').value = 4;
+      $('colsIn').value = 5;
+      $('trimIn').value = 6;
+      $('trimVal').textContent = '6';
+      $('splitSize').value = '224';
+      $('squareChk').checked = true;
+      $('detectBtn').disabled = true;
+      gridCanvas.hidden = true;
+      $('splitEmpty').hidden = false;
+      $('crops').innerHTML = '';
+      $('splitBadge').textContent = '0장';
+      updateDownloadBtn();
+      showToast('초기화했어요');
+    });
 
     // ===== 카메라 =====
     async function startCamera() {
